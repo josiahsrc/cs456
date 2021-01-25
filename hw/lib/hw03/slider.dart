@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -7,148 +8,139 @@ typedef void DoubleConsumer(double value);
 class ThumbSlider extends StatefulWidget {
   const ThumbSlider({
     Key key,
-    this.onChanged,
     this.onStart,
     this.onEnd,
-    this.initialValue = 0,
-    this.thumbRadius = 16,
-    this.thumbColorA = Colors.blue,
-    this.thumbColorB = Colors.red,
-    this.lineThickness = 2,
-    this.lineColorA = Colors.blue,
-    this.lineColorB = Colors.red,
-  })  : assert(initialValue != null),
-        assert(initialValue >= 0 && initialValue <= 1),
-        assert(thumbRadius != null),
-        assert(thumbColorA != null),
-        assert(thumbColorB != null),
-        assert(lineThickness != null),
+    this.onChanged,
+    this.valueA = 0.0,
+    this.valueB = 1.0,
+    this.initialValue = 0.0,
+    this.colorA = Colors.blue,
+    this.colorB = Colors.red,
+  })  : assert(valueA != null),
+        assert(valueB != null),
+        assert(valueA < valueB),
+        assert(initialValue != null),
+        assert(colorA != null),
+        assert(colorB != null),
         super(key: key);
 
-  final DoubleConsumer onChanged;
-
   final VoidCallback onStart;
-
   final VoidCallback onEnd;
-
+  final DoubleConsumer onChanged;
+  final double valueA;
+  final double valueB;
   final double initialValue;
-
-  final double thumbRadius;
-
-  final Color thumbColorA;
-
-  final Color thumbColorB;
-
-  final double lineThickness;
-
-  final Color lineColorA;
-
-  final Color lineColorB;
-
-  double get diameter => thumbRadius * 2;
+  final Color colorA;
+  final Color colorB;
 
   @override
   _ThumbSliderState createState() => _ThumbSliderState();
 }
 
 class _ThumbSliderState extends State<ThumbSlider> {
-  double _value;
-
-  @override
-  void initState() {
-    _value = widget.initialValue;
-    super.initState();
-  }
+  double _normalizedValue;
+  bool _isPressing = false;
 
   @override
   Widget build(BuildContext context) {
-    final height = math.max(widget.lineThickness, widget.diameter);
+    final mq = MediaQuery.of(context);
 
-    // An interpolated line color based on the value.
-    final lineColor = Color.lerp(
-      widget.lineColorA,
-      widget.lineColorB,
-      _value,
+    final thumbRadius = 25.0;
+    final thumbDiameter = thumbRadius * 2;
+    final lineThickness = 2.0;
+    final containerWidth = mq.size.width;
+
+    if (_normalizedValue == null) {
+      final clamped = widget.initialValue.clamp(widget.valueA, widget.valueB);
+      _normalizedValue = clamped / containerWidth;
+    }
+
+    final thumbPos = Offset(
+      _normalizedValue * containerWidth,
+      thumbRadius,
     );
 
-    // An interpolated thumb color based on the value.
-    final thumbColor = Color.lerp(
-      widget.thumbColorA,
-      widget.thumbColorB,
-      _value,
-    );
+    bool isPressValid(Offset pos) {
+      return (thumbPos - pos).distance < thumbRadius;
+    }
 
-    // The bounds of the slider. Expand to fit the parent's
-    // width, but clamp the height to match this widget.
-    final drawer = SizedBox(
-      height: height,
-      child: CustomPaint(
-        painter: _Painter(
-          value: _value,
-          lineColor: lineColor,
-          lineThickness: widget.lineThickness,
-          thumbColor: thumbColor,
-          thumbRadius: widget.thumbRadius,
-        ),
+    void updatePress(Offset pos) {
+      final clamped = pos.dx.clamp(0, containerWidth);
+      setState(() => _normalizedValue = clamped / containerWidth);
+
+      final value = ui.lerpDouble(
+        widget.valueA,
+        widget.valueB,
+        _normalizedValue,
+      );
+
+      widget.onChanged?.call(value);
+    }
+
+    final painter = CustomPaint(
+      painter: _Painter(
+        color: Color.lerp(widget.colorA, widget.colorB, _normalizedValue),
+        value: _normalizedValue,
+        thumbRadius: thumbRadius,
+        lineThickness: lineThickness,
       ),
     );
 
-    // A gesture arena for tracking pointer positions.
-    final gestures = LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-
-        double getValue(double xpos) {
-          final clamped = xpos.clamp(0, width);
-          return clamped / width;
+    final listener = Listener(
+      onPointerDown: (event) {
+        if (isPressValid(event.localPosition)) {
+          widget.onStart?.call();
+          updatePress(event.localPosition);
+          _isPressing = true;
         }
-
-        return GestureDetector(
-          onPanDown: (details) {
-            final v = getValue(details.localPosition.dx);
-            setState(() => _value = v);
-            widget.onStart?.call();
-            widget.onChanged?.call(v);
-          },
-          onPanCancel: () {
-            widget.onEnd?.call();
-          },
-          onPanEnd: (details) {
-            widget.onEnd?.call();
-          },
-          onPanUpdate: (details) {
-            final v = getValue(details.localPosition.dx);
-            setState(() => _value = v);
-            widget.onChanged?.call(v);
-          },
-          child: drawer,
-        );
       },
+      onPointerMove: (event) {
+        if (_isPressing) {
+          updatePress(event.localPosition);
+        }
+      },
+      onPointerCancel: (event) {
+        if (_isPressing) {
+          widget.onEnd?.call();
+        }
+        _isPressing = false;
+      },
+      onPointerUp: (event) {
+        if (_isPressing) {
+          widget.onEnd?.call();
+        }
+        _isPressing = false;
+      },
+      child: painter,
     );
 
-    return gestures;
+    final content = Container(
+      width: double.infinity,
+      height: thumbDiameter,
+      color: Colors.grey,
+      child: listener,
+    );
+
+    return content;
   }
 }
 
 class _Painter extends CustomPainter {
   const _Painter({
     @required this.value,
-    @required this.lineColor,
-    @required this.lineThickness,
-    @required this.thumbColor,
+    @required this.color,
     @required this.thumbRadius,
+    @required this.lineThickness,
   })  : assert(value != null),
-        assert(lineColor != null),
-        assert(lineThickness != null),
-        assert(thumbColor != null),
+        assert(color != null),
         assert(thumbRadius != null),
+        assert(lineThickness != null),
         super();
 
   final double value;
-  final Color lineColor;
-  final double lineThickness;
-  final Color thumbColor;
+  final Color color;
   final double thumbRadius;
+  final double lineThickness;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -159,16 +151,16 @@ class _Painter extends CustomPainter {
       final start = Offset(0, halfExtents.height);
       final end = Offset(size.width, halfExtents.height);
       final paint = Paint()
-        ..color = lineColor
+        ..color = color
         ..strokeWidth = lineThickness;
 
       canvas.drawLine(start, end, paint);
     }
 
-    // Draw thumb.
+    // Draw circle.
     {
       final origin = Offset(value * size.width, halfExtents.height);
-      final paint = Paint()..color = thumbColor;
+      final paint = Paint()..color = color;
 
       canvas.drawCircle(origin, thumbRadius, paint);
     }
@@ -176,10 +168,9 @@ class _Painter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _Painter old) {
-    return old.value != this.value &&
-        old.lineColor != this.lineColor &&
-        old.lineThickness != this.lineThickness &&
-        old.thumbColor != this.thumbColor &&
+    return old.value != this.value ||
+        old.color != this.color ||
+        old.lineThickness != this.lineThickness ||
         old.thumbRadius != this.thumbRadius;
   }
 }

@@ -5,15 +5,30 @@ import 'slider.dart';
 class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final textbox = Text(
+      'Hello',
+      textAlign: TextAlign.center,
+    );
+
+    final slider = ThumbSlider(
+      onStart: () {
+        print('Started slider');
+      },
+      onEnd: () {
+        print('Ended slider');
+      },
+      onChanged: (value) {
+        print('Changed slider: $value');
+      },
+    );
+
     final page = Scaffold(
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(42.0),
-            child: ThumbSlider(),
-          ),
+          textbox,
+          slider,
         ],
       ),
     );
