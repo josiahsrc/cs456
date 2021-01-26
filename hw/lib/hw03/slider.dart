@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -91,7 +90,7 @@ class _ThumbSliderState extends State<ThumbSlider> {
         if (isPressValid(event.localPosition)) {
           widget.onStart?.call();
           updatePress(event.localPosition);
-          _isPressing = true;
+          setState(() => _isPressing = true);
         }
       },
       onPointerMove: (event) {
@@ -99,17 +98,17 @@ class _ThumbSliderState extends State<ThumbSlider> {
           updatePress(event.localPosition);
         }
       },
-      onPointerCancel: (event) {
-        if (_isPressing) {
-          widget.onEnd?.call();
-        }
-        _isPressing = false;
-      },
       onPointerUp: (event) {
         if (_isPressing) {
           widget.onEnd?.call();
+          setState(() => _isPressing = false);
         }
-        _isPressing = false;
+      },
+      onPointerCancel: (event) {
+        if (_isPressing) {
+          widget.onEnd?.call();
+          setState(() => _isPressing = false);
+        }
       },
       child: painter,
     );
