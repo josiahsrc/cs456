@@ -2,9 +2,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-typedef void DoubleConsumer(double value);
-
 class ThumbSlider extends StatefulWidget {
+  /// Here is my constructor definition for my slider. This
+  /// allows the caller to configure the widget.
+  ///
+  /// Callbacks:
+  /// - onStart, invoked when the thumb becomes active.
+  /// - onChange, invoked when the thumb changes location.
+  /// - onEnd, invoked when the thumb becomes inactive.
   const ThumbSlider({
     Key key,
     this.onStart,
@@ -15,22 +20,30 @@ class ThumbSlider extends StatefulWidget {
     this.initialValue = 0.0,
     this.colorA = Colors.blue,
     this.colorB = Colors.red,
+    this.thumbRadius = 25,
+    this.lineThickness = 2,
   })  : assert(valueA != null),
         assert(valueB != null),
         assert(valueA < valueB),
         assert(initialValue != null),
         assert(colorA != null),
         assert(colorB != null),
+        assert(thumbRadius != null && thumbRadius >= 0),
+        assert(lineThickness != null && lineThickness >= 0),
         super(key: key);
 
   final VoidCallback onStart;
   final VoidCallback onEnd;
-  final DoubleConsumer onChanged;
+  final ValueChanged<double> onChanged;
   final double valueA;
   final double valueB;
   final double initialValue;
   final Color colorA;
   final Color colorB;
+  final double thumbRadius;
+  final double lineThickness;
+
+  double get thumbDiameter => thumbRadius * 2;
 
   @override
   _ThumbSliderState createState() => _ThumbSliderState();
@@ -44,23 +57,24 @@ class _ThumbSliderState extends State<ThumbSlider> {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
 
-    final thumbRadius = 25.0;
-    final thumbDiameter = thumbRadius * 2;
-    final lineThickness = 2.0;
     final containerWidth = mq.size.width;
 
     if (_normalizedValue == null) {
-      final clamped = widget.initialValue.clamp(widget.valueA, widget.valueB);
+      final clamped = widget.initialValue.clamp(
+        widget.valueA,
+        widget.valueB,
+      );
+
       _normalizedValue = clamped / containerWidth;
     }
 
     final thumbPos = Offset(
       _normalizedValue * containerWidth,
-      thumbRadius,
+      widget.thumbRadius,
     );
 
     bool isPressValid(Offset pos) {
-      return (thumbPos - pos).distance < thumbRadius;
+      return (thumbPos - pos).distance < widget.thumbRadius;
     }
 
     void updatePress(Offset pos) {
@@ -76,15 +90,27 @@ class _ThumbSliderState extends State<ThumbSlider> {
       widget.onChanged?.call(value);
     }
 
+    /// Here is where I declare my custom painter. The listener
+    /// will wrap this widget. The painter will render a thumb
+    /// and a slider based on the input tracked from the listener.
     final painter = CustomPaint(
+      /// This is where I'm creating my painter.
       painter: _Painter(
-        color: Color.lerp(widget.colorA, widget.colorB, _normalizedValue),
+        color: Color.lerp(
+          widget.colorA,
+          widget.colorB,
+          _normalizedValue,
+        ),
         value: _normalizedValue,
-        thumbRadius: thumbRadius,
-        lineThickness: lineThickness,
+        thumbRadius: widget.thumbRadius,
+        lineThickness: widget.lineThickness,
       ),
     );
 
+    /// I'm overriding the listener here. The listener will
+    /// be responsible for tracking input gestures on this.
+    /// If an input gesture starts within the thumb, then the
+    /// widget becomes "slidable".
     final listener = Listener(
       onPointerDown: (event) {
         if (isPressValid(event.localPosition)) {
@@ -115,7 +141,7 @@ class _ThumbSliderState extends State<ThumbSlider> {
 
     final content = Container(
       width: double.infinity,
-      height: thumbDiameter,
+      height: widget.thumbDiameter,
       color: Colors.grey,
       child: listener,
     );
@@ -124,6 +150,7 @@ class _ThumbSliderState extends State<ThumbSlider> {
   }
 }
 
+/// Draws the slider.
 class _Painter extends CustomPainter {
   const _Painter({
     @required this.value,
