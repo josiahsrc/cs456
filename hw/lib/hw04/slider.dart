@@ -90,19 +90,21 @@ class ThumbSlider extends StatefulWidget {
 
 class _ThumbSliderState extends State<ThumbSlider> {
   List<_ThumbState> _thumbStates;
-  int _selectedThumb = null;
+  int _selectedThumb;
 
   bool get _isThumbSelected => _selectedThumb != null;
 
   @override
   void initState() {
     _syncThumbStates();
+    _resolveCollisions();
     super.initState();
   }
 
   @override
   void didUpdateWidget(covariant ThumbSlider prev) {
     _syncThumbStates();
+    _resolveCollisions();
     super.didUpdateWidget(prev);
   }
 
@@ -117,7 +119,42 @@ class _ThumbSliderState extends State<ThumbSlider> {
     ];
   }
 
-  void _resolveCollisions() {}
+  /// Do a forward or backward pass to resolve thumb collisions.
+  void _resolveCollisions([bool forward = true]) {
+    assert(forward != null);
+    assert(_thumbStates.length == widget.thumbs.length);
+
+    if (_thumbStates.length == 0) {
+      return;
+    }
+
+    _ThumbState prev;
+    if (forward) {
+      prev = _thumbStates[0];
+      for (int i = 1; i < _thumbStates.length; ++i) {
+        if (_thumbStates[i].nrmValue < prev.nrmValue) {
+          _thumbStates[i] = _thumbStates[i].copyWith(
+            nrmValue: prev.nrmValue,
+            value: prev.value,
+          );
+        }
+
+        prev = _thumbStates[i];
+      }
+    } else {
+      prev = _thumbStates[_thumbStates.length - 1];
+      for (int i = _thumbStates.length - 2; i >= 0; --i) {
+        if (_thumbStates[i].nrmValue > prev.nrmValue) {
+          _thumbStates[i] = _thumbStates[i].copyWith(
+            nrmValue: prev.nrmValue,
+            value: prev.value,
+          );
+        }
+
+        prev = _thumbStates[i];
+      }
+    }
+  }
 
   double _normalizeValue(double value) {
     final min = widget.valueA.abs();
@@ -164,10 +201,13 @@ class _ThumbSliderState extends State<ThumbSlider> {
       final value = ui.lerpDouble(widget.valueA, widget.valueB, nrmValue);
 
       setState(() {
+        final prevNrmValue = _thumbStates[thumbIndex].nrmValue;
         _thumbStates[thumbIndex] = _thumbStates[thumbIndex].copyWith(
           nrmValue: nrmValue,
           value: value,
         );
+
+        _resolveCollisions(nrmValue > prevNrmValue);
       });
 
       widget.thumbs[thumbIndex].onChanged?.call(value);
