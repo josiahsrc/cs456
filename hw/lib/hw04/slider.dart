@@ -46,25 +46,20 @@ class ThumbSliderDecoration {
 class _ThumbState {
   const _ThumbState({
     @required this.value,
-    @required this.pressed,
     @required this.nrmValue,
   })  : assert(value != null),
-        assert(pressed != null),
         assert(nrmValue != null),
         super();
 
   final double value;
-  final bool pressed;
   final double nrmValue;
 
   _ThumbState copyWith({
     double value,
-    bool pressed,
     double nrmValue,
   }) {
     return _ThumbState(
       value: value ?? this.value,
-      pressed: pressed ?? this.pressed,
       nrmValue: nrmValue ?? this.nrmValue,
     );
   }
@@ -95,6 +90,9 @@ class ThumbSlider extends StatefulWidget {
 
 class _ThumbSliderState extends State<ThumbSlider> {
   List<_ThumbState> _thumbStates;
+  int _selectedThumb = null;
+
+  bool get _isThumbSelected => _selectedThumb != null;
 
   @override
   void initState() {
@@ -109,12 +107,12 @@ class _ThumbSliderState extends State<ThumbSlider> {
   }
 
   void _syncThumbStates() {
+    _selectedThumb = null;
     _thumbStates = [
       for (final thumb in widget.thumbs)
         _ThumbState(
           value: thumb.initialValue.clamp(widget.valueA, widget.valueA),
           nrmValue: _normalizeValue(thumb.initialValue),
-          pressed: false,
         ),
     ];
   }
@@ -149,7 +147,7 @@ class _ThumbSliderState extends State<ThumbSlider> {
         ),
     ];
 
-    int getThumb(Offset pos) {
+    int getOverlappingThumb(Offset pos) {
       for (int i = 0; i < widget.thumbs.length; ++i) {
         final thumbPos = thumbPositions[i];
         if ((thumbPos - pos).distance < widget.decoration.thumbRadius) {
@@ -190,30 +188,31 @@ class _ThumbSliderState extends State<ThumbSlider> {
     /// If an input gesture starts within the thumb, then the
     /// widget becomes "slidable".
     final listener = Listener(
-      // onPointerDown: (event) {
-      //   if (isPressValid(event.localPosition)) {
-      //     widget.onStart?.call();
-      //     updatePress(event.localPosition);
-      //     setState(() => _isPressing = true);
-      //   }
-      // },
-      // onPointerMove: (event) {
-      //   if (_isPressing) {
-      //     updatePress(event.localPosition);
-      //   }
-      // },
-      // onPointerUp: (event) {
-      //   if (_isPressing) {
-      //     widget.onEnd?.call();
-      //     setState(() => _isPressing = false);
-      //   }
-      // },
-      // onPointerCancel: (event) {
-      //   if (_isPressing) {
-      //     widget.onEnd?.call();
-      //     setState(() => _isPressing = false);
-      //   }
-      // },
+      onPointerDown: (event) {
+        int idx = getOverlappingThumb(event.localPosition);
+        if (idx != null) {
+          widget.thumbs[idx].onStart?.call();
+          updatePress(idx, event.localPosition);
+          setState(() => _selectedThumb = idx);
+        }
+      },
+      onPointerMove: (event) {
+        if (_isThumbSelected) {
+          updatePress(_selectedThumb, event.localPosition);
+        }
+      },
+      onPointerUp: (event) {
+        if (_isThumbSelected) {
+          widget.thumbs[_selectedThumb].onEnd?.call();
+          setState(() => _selectedThumb = null);
+        }
+      },
+      onPointerCancel: (event) {
+        if (_isThumbSelected) {
+          widget.thumbs[_selectedThumb].onEnd?.call();
+          setState(() => _selectedThumb = null);
+        }
+      },
       child: painter,
     );
 
