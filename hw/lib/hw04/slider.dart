@@ -101,13 +101,6 @@ class _ThumbSliderState extends State<ThumbSlider> {
     super.initState();
   }
 
-  @override
-  void didUpdateWidget(covariant ThumbSlider prev) {
-    _syncThumbStates();
-    _resolveCollisions();
-    super.didUpdateWidget(prev);
-  }
-
   void _syncThumbStates() {
     _selectedThumb = null;
     _thumbStates = [
