@@ -8,15 +8,15 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> {
-  static const int slidercount = 4;
+  static const int thumbCount = 1;
   
   List<bool> _slidersActive;
   List<double> _sliderValues;
 
   @override
   void initState() {
-    _slidersActive = [for (int i = 0; i < slidercount; ++i) false];
-    _sliderValues = [for (int i = 0; i < slidercount; ++i) 0.0];
+    _slidersActive = [for (int i = 0; i < thumbCount; ++i) false];
+    _sliderValues = [for (int i = 0; i < thumbCount; ++i) 0.0];
 
     super.initState();
   }
@@ -36,9 +36,9 @@ class _AppState extends State<App> {
     }
 
     final thumbs = [
-      for (int i = 0; i < 4; ++i)
+      for (int i = 0; i < thumbCount; ++i)
         slider.Thumb(
-          initialValue: i.toDouble() / 4,
+          initialValue: 0,
           onStart: () => activateThumb(i),
           onEnd: () => deactivateThumb(i),
           onChanged: (value) => updateThumb(i, value),
@@ -46,7 +46,7 @@ class _AppState extends State<App> {
     ];
 
     final textBoxes = [
-      for (int i = 0; i < 4; ++i)
+      for (int i = 0; i < thumbCount; ++i)
         Text(
           'Slider Value = ${_sliderValues[i].toStringAsFixed(4)}',
           textAlign: TextAlign.left,
@@ -58,7 +58,7 @@ class _AppState extends State<App> {
 
     final thumbSlider = slider.ThumbSlider(
       valueA: 0,
-      valueB: 100,
+      valueB: 20,
       thumbs: thumbs,
     );
 
