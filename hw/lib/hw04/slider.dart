@@ -296,7 +296,7 @@ class _Painter extends CustomPainter {
       final paint = Paint()
         ..color = Color.lerp(
           decoration.thumbColorA,
-          decoration.thumbColorA,
+          decoration.thumbColorB,
           thumb.nrmValue,
         );
 
