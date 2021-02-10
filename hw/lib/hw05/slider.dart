@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -6,28 +7,59 @@ typedef CurvedSliderParametricCallback = double Function(double t);
 
 const _segments = 300;
 
+double _normalize(double val, double min, double max) {
+  final absmin = min.abs();
+
+  double res;
+  if (min > 0) {
+    res = (val - absmin) / (max - absmin);
+  } else {
+    res = (val + absmin) / (max + absmin);
+  }
+
+  return res.clamp(0.0, 1.0);
+}
+
+double _denormalize(double nrm, double min, double max) {
+  return ui.lerpDouble(nrm, min, max).clamp(min, max);
+}
+
 @immutable
 class CurvedSliderDecoration {
   const CurvedSliderDecoration({
     this.lineThickness = 6,
     this.lineColor = Colors.grey,
     this.thumbRadius = 16,
-    this.thumbColor = Colors.red,
+    this.thumbColorA = Colors.blue,
+    this.thumbColorB = Colors.red,
   })  : assert(lineThickness != null && lineThickness >= 0),
         assert(lineColor != null),
         assert(thumbRadius != null && thumbRadius >= 0),
-        assert(thumbColor != null),
+        assert(thumbColorA != null),
+        assert(thumbColorB != null),
         super();
 
   final double lineThickness;
   final Color lineColor;
   final double thumbRadius;
-  final Color thumbColor;
+  final Color thumbColorA;
+  final Color thumbColorB;
 }
 
 @immutable
 class CurvedSliderThumb {
-  const CurvedSliderThumb() : super();
+  const CurvedSliderThumb({
+    this.initialValue = 0.0,
+    this.onStart,
+    this.onEnd,
+    this.onChanged,
+  })  : assert(initialValue != null),
+        super();
+
+  final double initialValue;
+  final VoidCallback onStart;
+  final VoidCallback onEnd;
+  final ValueChanged<double> onChanged;
 }
 
 class CurvedSlider extends StatefulWidget {
@@ -37,15 +69,25 @@ class CurvedSlider extends StatefulWidget {
     @required this.computeX,
     @required this.computeY,
     @required this.join,
+    this.valueA = 0.0,
+    this.valueB = 1.0,
+    @required this.thumbs,
   })  : assert(decoration != null),
         assert(computeX != null),
         assert(computeY != null),
         assert(join != null),
+        assert(valueA != null),
+        assert(valueB != null),
+        assert(valueA < valueB),
+        assert(thumbs != null),
         super(key: key);
 
   factory CurvedSlider.elipse({
     double fill = 1,
     double offset = 0,
+    double valueA = 0.0,
+    double valueB = 1.0,
+    @required List<CurvedSliderThumb> thumbs,
   }) {
     assert(fill != null && fill >= 0 && fill <= 1);
     assert(offset != null && offset >= 0 && offset <= 1);
@@ -59,6 +101,9 @@ class CurvedSlider extends StatefulWidget {
       computeX: (t) => math.cos(getEffectiveT(t)),
       computeY: (t) => math.sin(getEffectiveT(t)),
       join: fill == 1.0,
+      valueA: valueA,
+      valueB: valueB,
+      thumbs: thumbs,
     );
   }
 
@@ -66,28 +111,37 @@ class CurvedSlider extends StatefulWidget {
   final CurvedSliderParametricCallback computeX;
   final CurvedSliderParametricCallback computeY;
   final bool join;
+  final double valueA;
+  final double valueB;
+  final List<CurvedSliderThumb> thumbs;
 
   @override
   _CurvedSliderState createState() => _CurvedSliderState();
 }
 
 class _CurvedSliderState extends State<CurvedSlider> {
-  final List<Offset> nrmLinePoints = [];
-  final List<Offset> nrmThumbPoints = [];
+  final List<Offset> lineNrmPoints = [];
+  final List<Offset> thumbNrmPoints = [];
+  final List<double> thumbNrmValues = [];
+  int selectedThumbIdx;
+
+  bool get isThumbSelected => selectedThumbIdx != null;
 
   @override
   void initState() {
-    _sync();
+    syncNrmLinePoints();
+    syncNrmThumbPoints();
     super.initState();
   }
 
   @override
   void didUpdateWidget(covariant CurvedSlider oldWidget) {
-    _sync();
+    syncNrmLinePoints();
+    syncNrmThumbPoints();
     super.didUpdateWidget(oldWidget);
   }
 
-  void _sync() {
+  void syncNrmLinePoints() {
     double getX(double t) {
       return widget.computeX.call(t);
     }
@@ -98,15 +152,6 @@ class _CurvedSliderState extends State<CurvedSlider> {
 
     double getT(int i) {
       return ((i).toDouble() / _segments) * 2 * math.pi;
-    }
-
-    double getNrm(double val, double min, double max) {
-      final absmin = min.abs();
-      if (min > 0) {
-        return (val - absmin) / (max - absmin);
-      } else {
-        return (val + absmin) / (max + absmin);
-      }
     }
 
     // Get parametric bounds.
@@ -125,26 +170,70 @@ class _CurvedSliderState extends State<CurvedSlider> {
       if (y > maxY) maxY = y;
     }
 
-    // Cache normalized points.
-    nrmLinePoints.clear();
+    // Cache normalized line points.
+    lineNrmPoints.clear();
     for (int i = 0; i < _segments; ++i) {
       final t = getT(i);
-      nrmLinePoints.add(Offset(
-        getNrm(getX(t), minX, maxX),
-        getNrm(getY(t), minY, maxY),
+      lineNrmPoints.add(Offset(
+        _normalize(getX(t), minX, maxX),
+        _normalize(getY(t), minY, maxY),
       ));
     }
   }
 
-  Offset _closestOnLine(Offset nrmPoint) {
-    Offset closestNrm;
+  void syncNrmThumbPoints() {
+    final nthumbs = widget.thumbs.length;
+    final npoints = lineNrmPoints.length;
+
+    // Cache normalized thumb points.
+    thumbNrmValues.clear();
+    thumbNrmPoints.clear();
+    for (int i = 0; i < nthumbs; ++i) {
+      final thumb = widget.thumbs[i];
+
+      final nrm = rangeToNrm(thumb.initialValue);
+      final idx = (nrm * (npoints - 1)).round();
+      thumbNrmPoints.add(lineNrmPoints[idx]);
+      thumbNrmValues.add(nrm);
+    }
+  }
+
+  double rangeToNrm(double range) {
+    return _normalize(range, widget.valueA, widget.valueB);
+  }
+
+  double nrmToRange(double nrm) {
+    return _denormalize(nrm, widget.valueA, widget.valueB);
+  }
+
+  int closestNrmLinePoint(Offset nrmPoint) {
+    int closestNrm;
     var closestDist = double.infinity;
 
-    for (final offset in nrmLinePoints) {
-      var dist = (nrmPoint - offset).distanceSquared;
+    for (int i = 0; i < lineNrmPoints.length; ++i) {
+      final offset = lineNrmPoints[i];
+      final dist = (nrmPoint - offset).distanceSquared;
+
       if (dist < closestDist) {
         closestDist = dist;
-        closestNrm = offset;
+        closestNrm = i;
+      }
+    }
+
+    return closestNrm;
+  }
+
+  int closestNrmThumbPoint(Offset nrmPoint) {
+    int closestNrm;
+    var closestDist = double.infinity;
+
+    for (int i = 0; i < thumbNrmPoints.length; ++i) {
+      final offset = thumbNrmPoints[i];
+      final dist = (nrmPoint - offset).distanceSquared;
+
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestNrm = i;
       }
     }
 
@@ -153,23 +242,45 @@ class _CurvedSliderState extends State<CurvedSlider> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: _layout);
+    return LayoutBuilder(builder: layout);
   }
 
-  Widget _layout(BuildContext context, BoxConstraints constraints) {
+  Widget layout(BuildContext context, BoxConstraints constraints) {
     final size = Size(constraints.maxWidth, constraints.maxHeight);
 
-    Offset getNrm(Offset loc) {
+    Offset normalizePoint(Offset loc) {
       return Offset(
         loc.dx / size.width,
         loc.dy / size.height,
       );
     }
 
+    Offset denormalizePoint(Offset loc) {
+      return Offset(
+        loc.dx * size.width,
+        loc.dy * size.height,
+      );
+    }
+
+    void updatePress(int thumbIdx, Offset localPos) {
+      setState(() {
+        final nrmPoint = normalizePoint(localPos);
+        final lineIdx = closestNrmLinePoint(nrmPoint);
+        final lineNrm = lineNrmPoints[lineIdx];
+
+        thumbNrmPoints[thumbIdx] = lineNrm;
+        thumbNrmValues[thumbIdx] =
+            lineIdx.toDouble() / (lineNrmPoints.length - 1);
+
+        widget.thumbs[thumbIdx].onChanged?.call(thumbNrmValues[thumbIdx]);
+      });
+    }
+
     final painter = CustomPaint(
       painter: _Painter(
-        nrmLinePoints: nrmLinePoints,
-        nrmThumbPoints: nrmThumbPoints,
+        lineNrmPoints: lineNrmPoints,
+        thumbNrmPoints: thumbNrmPoints,
+        thumbNrmValues: thumbNrmValues,
         join: widget.join,
         decoration: widget.decoration,
       ),
@@ -177,11 +288,44 @@ class _CurvedSliderState extends State<CurvedSlider> {
 
     final gestures = Listener(
       onPointerDown: (event) {
-        // final nrm = getNrm(event.localPosition);
+        final nrm = normalizePoint(event.localPosition);
+        final idx = closestNrmThumbPoint(nrm);
+
+        if (idx == null) {
+          return;
+        }
+
+        if (isThumbSelected) {
+          return;
+        }
+
+        final pos = denormalizePoint(thumbNrmPoints[idx]);
+        if ((pos - event.localPosition).distance >
+            widget.decoration.thumbRadius) {
+          return;
+        }
+
+        widget.thumbs[idx].onStart?.call();
+        updatePress(idx, event.localPosition);
+        setState(() => selectedThumbIdx = idx);
       },
-      onPointerMove: (event) {},
-      onPointerUp: (event) {},
-      onPointerCancel: (event) {},
+      onPointerMove: (event) {
+        if (isThumbSelected) {
+          updatePress(selectedThumbIdx, event.localPosition);
+        }
+      },
+      onPointerUp: (event) {
+        if (isThumbSelected) {
+          widget.thumbs[selectedThumbIdx].onEnd?.call();
+          setState(() => selectedThumbIdx = null);
+        }
+      },
+      onPointerCancel: (event) {
+        if (isThumbSelected) {
+          widget.thumbs[selectedThumbIdx].onEnd?.call();
+          setState(() => selectedThumbIdx = null);
+        }
+      },
       child: painter,
     );
 
@@ -192,24 +336,27 @@ class _CurvedSliderState extends State<CurvedSlider> {
 /// Draws the slider.
 class _Painter extends CustomPainter {
   const _Painter({
-    @required this.nrmLinePoints,
-    @required this.nrmThumbPoints,
+    @required this.lineNrmPoints,
+    @required this.thumbNrmPoints,
+    @required this.thumbNrmValues,
     @required this.join,
     @required this.decoration,
-  })  : assert(nrmLinePoints != null),
-        assert(nrmThumbPoints != null),
+  })  : assert(lineNrmPoints != null),
+        assert(thumbNrmPoints != null),
+        assert(thumbNrmValues != null),
         assert(join != null),
         assert(decoration != null),
         super();
 
-  final List<Offset> nrmLinePoints;
-  final List<Offset> nrmThumbPoints;
+  final List<Offset> lineNrmPoints;
+  final List<Offset> thumbNrmPoints;
+  final List<double> thumbNrmValues;
   final bool join;
   final CurvedSliderDecoration decoration;
 
   @override
   void paint(Canvas canvas, Size size) {
-    assert(nrmLinePoints.length > 0);
+    assert(lineNrmPoints.length > 0);
 
     double getCanvasX(double nrmX) {
       return nrmX * size.width;
@@ -221,12 +368,13 @@ class _Painter extends CustomPainter {
 
     // Draw line.
     {
-      final path = Path()..moveTo(
-        getCanvasX(nrmLinePoints.first.dx),
-        getCanvasY(nrmLinePoints.first.dy),
-      );
+      final path = Path()
+        ..moveTo(
+          getCanvasX(lineNrmPoints.first.dx),
+          getCanvasY(lineNrmPoints.first.dy),
+        );
 
-      for (final nrmPoint in nrmLinePoints) {
+      for (final nrmPoint in lineNrmPoints) {
         final x = getCanvasX(nrmPoint.dx);
         final y = getCanvasY(nrmPoint.dy);
         path.lineTo(x, y);
@@ -244,11 +392,20 @@ class _Painter extends CustomPainter {
 
     // Draw thumbs.
     {
-      for (final nrmPoint in nrmThumbPoints) {
-        final x = getCanvasX(nrmPoint.dx);
-        final y = getCanvasY(nrmPoint.dy);
+      final nthumbs = thumbNrmPoints.length;
+      for (int i = 0; i < nthumbs; ++i) {
+        final point = thumbNrmPoints[i];
+        final value = thumbNrmValues[i];
 
-        final paint = Paint()..color = decoration.thumbColor;
+        final x = getCanvasX(point.dx);
+        final y = getCanvasY(point.dy);
+
+        final paint = Paint()
+          ..color = Color.lerp(
+            decoration.thumbColorA,
+            decoration.thumbColorB,
+            value,
+          );
 
         canvas.drawCircle(
           Offset(x, y),

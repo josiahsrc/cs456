@@ -19,8 +19,14 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final slider = CurvedSlider.elipse(
-      fill: .25,
+      valueA: 10,
+      valueB: 110,
+      fill: .5,
       offset: .75,
+      thumbs: [
+        CurvedSliderThumb(initialValue: 10),
+        CurvedSliderThumb(initialValue: 50),
+      ],
     );
 
     return Scaffold(
