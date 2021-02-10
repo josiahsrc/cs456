@@ -18,22 +18,33 @@ class App extends StatelessWidget {
 class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final valueA = 10.0;
+    final valueB = 110.0;
+    final thumbs = <CurvedSliderThumb>[
+      CurvedSliderThumb(initialValue: 10),
+      CurvedSliderThumb(initialValue: 50),
+      CurvedSliderThumb(initialValue: 80),
+    ];
+
     final slider = CurvedSlider.elipse(
-      valueA: 10,
-      valueB: 110,
+      valueA: valueA,
+      valueB: valueB,
       fill: .25,
       offset: .75,
-      thumbs: [
-        CurvedSliderThumb(initialValue: 10),
-        CurvedSliderThumb(initialValue: 50),
-        CurvedSliderThumb(initialValue: 80),
-      ],
+      thumbs: thumbs,
     );
+
+    // final slider = CurvedSlider.waves(
+    //   frequency: 1,
+    //   valueA: valueA,
+    //   valueB: valueB,
+    //   thumbs: thumbs,
+    // );
 
     return Scaffold(
       body: Center(
         child: AspectRatio(
-          aspectRatio: 1 / 1.2,
+          aspectRatio: 1 / 1,
           child: slider,
         ),
       ),

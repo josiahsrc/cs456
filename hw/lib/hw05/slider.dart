@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 typedef CurvedSliderParametricCallback = double Function(double t);
 
-const _segments = 300;
+const _segments = 600;
 
 double _normalize(double val, double min, double max) {
   final absmin = min.abs();
@@ -72,6 +72,7 @@ class CurvedSlider extends StatefulWidget {
     this.valueA = 0.0,
     this.valueB = 1.0,
     @required this.thumbs,
+    this.mirror = false,
   })  : assert(decoration != null),
         assert(computeX != null),
         assert(computeY != null),
@@ -80,6 +81,7 @@ class CurvedSlider extends StatefulWidget {
         assert(valueB != null),
         assert(valueA < valueB),
         assert(thumbs != null),
+        assert(mirror != null),
         super(key: key);
 
   factory CurvedSlider.elipse({
@@ -88,6 +90,8 @@ class CurvedSlider extends StatefulWidget {
     double valueA = 0.0,
     double valueB = 1.0,
     @required List<CurvedSliderThumb> thumbs,
+    CurvedSliderDecoration decoration = const CurvedSliderDecoration(),
+    bool mirror = false,
   }) {
     assert(fill != null && fill >= 0 && fill <= 1);
     assert(offset != null && offset >= 0 && offset <= 1);
@@ -104,6 +108,32 @@ class CurvedSlider extends StatefulWidget {
       valueA: valueA,
       valueB: valueB,
       thumbs: thumbs,
+      decoration: decoration,
+      mirror: mirror,
+    );
+  }
+
+  factory CurvedSlider.waves({
+    double valueA = 0.0,
+    double valueB = 1.0,
+    double offset = 0.0,
+    double frequency = 1.0,
+    @required List<CurvedSliderThumb> thumbs,
+    CurvedSliderDecoration decoration = const CurvedSliderDecoration(),
+    bool mirror = false,
+  }) {
+    assert(offset != null);
+    assert(frequency != null);
+
+    return CurvedSlider(
+      computeX: (t) => t,
+      computeY: (t) => math.sin(t * frequency + offset),
+      join: false,
+      valueA: valueA,
+      valueB: valueB,
+      thumbs: thumbs,
+      decoration: decoration,
+      mirror: mirror,
     );
   }
 
@@ -113,6 +143,7 @@ class CurvedSlider extends StatefulWidget {
   final bool join;
   final double valueA;
   final double valueB;
+  final bool mirror;
   final List<CurvedSliderThumb> thumbs;
 
   @override
@@ -374,6 +405,14 @@ class _CurvedSliderState extends State<CurvedSlider> {
       },
       child: painter,
     );
+
+    if (widget.mirror) {
+      return Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.rotationY(math.pi),
+        child: gestures,
+      );
+    }
 
     return gestures;
   }
