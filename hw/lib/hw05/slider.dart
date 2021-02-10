@@ -131,6 +131,7 @@ class _CurvedSliderState extends State<CurvedSlider> {
   void initState() {
     syncNrmLinePoints();
     syncNrmThumbPoints();
+    resolveCollisions();
     super.initState();
   }
 
@@ -138,6 +139,7 @@ class _CurvedSliderState extends State<CurvedSlider> {
   void didUpdateWidget(covariant CurvedSlider oldWidget) {
     syncNrmLinePoints();
     syncNrmThumbPoints();
+    resolveCollisions();
     super.didUpdateWidget(oldWidget);
   }
 
@@ -240,6 +242,45 @@ class _CurvedSliderState extends State<CurvedSlider> {
     return closestNrm;
   }
 
+  void resolveCollisions([bool forward = true]) {
+    assert(forward != null);
+
+    final nthumbs = widget.thumbs.length;
+    if (nthumbs == 0) {
+      return;
+    }
+
+    double prevVal;
+    Offset prevPos;
+    if (forward) {
+      prevVal = thumbNrmValues[0];
+      prevPos = thumbNrmPoints[0];
+      for (int i = 1; i < nthumbs; ++i) {
+        if (thumbNrmValues[i] < prevVal) {
+          thumbNrmValues[i] = prevVal;
+          thumbNrmPoints[i] = prevPos;
+          widget.thumbs[i].onChanged?.call(nrmToRange(prevVal));
+        }
+
+        prevVal = thumbNrmValues[i];
+        prevPos = thumbNrmPoints[i];
+      }
+    } else {
+      prevVal = thumbNrmValues[nthumbs - 1];
+      prevPos = thumbNrmPoints[nthumbs - 1];
+      for (int i = nthumbs - 2; i >= 0; --i) {
+        if (thumbNrmValues[i] > prevVal) {
+          thumbNrmValues[i] = prevVal;
+          thumbNrmPoints[i] = prevPos;
+          widget.thumbs[i].onChanged?.call(nrmToRange(prevVal));
+        }
+
+        prevVal = thumbNrmValues[i];
+        prevPos = thumbNrmPoints[i];
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: layout);
@@ -268,12 +309,17 @@ class _CurvedSliderState extends State<CurvedSlider> {
         final lineIdx = closestNrmLinePoint(nrmPoint);
         final lineNrm = lineNrmPoints[lineIdx];
 
-        thumbNrmPoints[thumbIdx] = lineNrm;
-        thumbNrmValues[thumbIdx] =
-            lineIdx.toDouble() / (lineNrmPoints.length - 1);
+        final prevNrm = thumbNrmValues[thumbIdx];
+        final currNrm = lineIdx.toDouble() / (lineNrmPoints.length - 1);
 
-        widget.thumbs[thumbIdx].onChanged?.call(thumbNrmValues[thumbIdx]);
+        thumbNrmPoints[thumbIdx] = lineNrm;
+        thumbNrmValues[thumbIdx] = currNrm;
+
+        resolveCollisions(currNrm > prevNrm);
       });
+
+      final value = nrmToRange(thumbNrmValues[thumbIdx]);
+      widget.thumbs[thumbIdx].onChanged?.call(value);
     }
 
     final painter = CustomPaint(

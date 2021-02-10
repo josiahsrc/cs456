@@ -21,11 +21,12 @@ class HomePage extends StatelessWidget {
     final slider = CurvedSlider.elipse(
       valueA: 10,
       valueB: 110,
-      fill: .5,
+      fill: .25,
       offset: .75,
       thumbs: [
         CurvedSliderThumb(initialValue: 10),
         CurvedSliderThumb(initialValue: 50),
+        CurvedSliderThumb(initialValue: 80),
       ],
     );
 
