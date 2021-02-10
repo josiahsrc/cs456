@@ -4,20 +4,46 @@ import 'package:flutter/material.dart';
 
 typedef CurvedSliderParametricCallback = double Function(double t);
 
+const _segments = 300;
+
 @immutable
-class CurvedSliderCalculator {
-  const CurvedSliderCalculator({
-    @required CurvedSliderParametricCallback computeX,
-    @required CurvedSliderParametricCallback computeY,
-    this.join = true,
-  })  : assert(computeX != null),
-        assert(computeY != null),
-        assert(join != null),
-        _computeX = computeX,
-        _computeY = computeY,
+class CurvedSliderDecoration {
+  const CurvedSliderDecoration({
+    this.lineThickness = 6,
+    this.lineColor = Colors.grey,
+    this.thumbRadius = 16,
+    this.thumbColor = Colors.red,
+  })  : assert(lineThickness != null && lineThickness >= 0),
+        assert(lineColor != null),
+        assert(thumbRadius != null && thumbRadius >= 0),
+        assert(thumbColor != null),
         super();
 
-  factory CurvedSliderCalculator.elipse({
+  final double lineThickness;
+  final Color lineColor;
+  final double thumbRadius;
+  final Color thumbColor;
+}
+
+@immutable
+class CurvedSliderThumb {
+  const CurvedSliderThumb() : super();
+}
+
+class CurvedSlider extends StatefulWidget {
+  const CurvedSlider({
+    Key key,
+    this.decoration = const CurvedSliderDecoration(),
+    @required this.computeX,
+    @required this.computeY,
+    @required this.join,
+  })  : assert(decoration != null),
+        assert(computeX != null),
+        assert(computeY != null),
+        assert(join != null),
+        super(key: key);
+
+  factory CurvedSlider.elipse({
     double fill = 1,
     double offset = 0,
   }) {
@@ -29,133 +55,52 @@ class CurvedSliderCalculator {
       return t * fill + rOffset;
     }
 
-    return CurvedSliderCalculator(
+    return CurvedSlider(
       computeX: (t) => math.cos(getEffectiveT(t)),
       computeY: (t) => math.sin(getEffectiveT(t)),
-      join: fill == 1,
+      join: fill == 1.0,
     );
   }
 
-  final CurvedSliderParametricCallback _computeX;
-  final CurvedSliderParametricCallback _computeY;
-  final bool join;
-
-  double computeX(double t) {
-    return _computeX.call(t);
-  }
-
-  double computeY(double t) {
-    return _computeY.call(t);
-  }
-}
-
-@immutable
-class CurvedSliderDecoration {
-  const CurvedSliderDecoration({
-    this.lineThickness = 6,
-    this.lineColor = Colors.grey,
-  })  : assert(lineThickness != null && lineThickness >= 0),
-        assert(lineColor != null),
-        super();
-
-  final double lineThickness;
-  final Color lineColor;
-}
-
-class CurvedSlider extends StatefulWidget {
-  const CurvedSlider({
-    Key key,
-    @required this.calculator,
-    this.decoration = const CurvedSliderDecoration(),
-  })  : assert(calculator != null),
-        assert(decoration != null),
-        super(key: key);
-
-  final CurvedSliderCalculator calculator;
   final CurvedSliderDecoration decoration;
+  final CurvedSliderParametricCallback computeX;
+  final CurvedSliderParametricCallback computeY;
+  final bool join;
 
   @override
   _CurvedSliderState createState() => _CurvedSliderState();
 }
 
 class _CurvedSliderState extends State<CurvedSlider> {
+  final List<Offset> nrmLinePoints = [];
+  final List<Offset> nrmThumbPoints = [];
+
   @override
   void initState() {
+    _sync();
     super.initState();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: _layout);
+  void didUpdateWidget(covariant CurvedSlider oldWidget) {
+    _sync();
+    super.didUpdateWidget(oldWidget);
   }
 
-  Widget _layout(BuildContext context, BoxConstraints constraints) {
-    final painter = CustomPaint(
-      painter: _Painter(
-        calculator: widget.calculator,
-        decoration: widget.decoration,
-      ),
-    );
-
-    final gestures = Listener(
-      onPointerDown: (event) {},
-      onPointerMove: (event) {},
-      onPointerUp: (event) {},
-      onPointerCancel: (event) {},
-      child: painter,
-    );
-
-    return gestures;
-  }
-}
-
-@immutable
-class _Thumb {
-  const _Thumb({
-    @required this.normal,
-  })  : assert(normal != null && normal >= 0 && normal <= 1),
-        super();
-
-  final double normal;
-
-  _Thumb copyWith({
-    double normal,
-  }) {
-    return _Thumb(
-      normal: normal ?? this.normal,
-    );
-  }
-}
-
-/// Draws the slider.
-class _Painter extends CustomPainter {
-  const _Painter({
-    @required this.calculator,
-    @required this.decoration,
-  })  : assert(calculator != null),
-        assert(decoration != null),
-        super();
-
-  final CurvedSliderCalculator calculator;
-  final CurvedSliderDecoration decoration;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final segments = 100;
-
+  void _sync() {
     double getX(double t) {
-      return calculator.computeX(t);
+      return widget.computeX.call(t);
     }
 
     double getY(double t) {
-      return calculator.computeY(t);
+      return widget.computeY.call(t);
     }
 
     double getT(int i) {
-      return ((i).toDouble() / segments) * 2 * math.pi;
+      return ((i).toDouble() / _segments) * 2 * math.pi;
     }
 
-    double getNormal(double val, double min, double max) {
+    double getNrm(double val, double min, double max) {
       final absmin = min.abs();
       if (min > 0) {
         return (val - absmin) / (max - absmin);
@@ -164,11 +109,12 @@ class _Painter extends CustomPainter {
       }
     }
 
+    // Get parametric bounds.
     var minX = double.infinity;
     var maxX = double.negativeInfinity;
     var minY = double.infinity;
     var maxY = double.negativeInfinity;
-    for (int i = 0; i < segments; ++i) {
+    for (int i = 0; i < _segments; ++i) {
       final t = getT(i);
       final x = getX(t);
       final y = getY(t);
@@ -179,22 +125,110 @@ class _Painter extends CustomPainter {
       if (y > maxY) maxY = y;
     }
 
-    double getCanvasX(double t) {
-      return getNormal(getX(t), minX, maxX) * size.width;
+    // Cache normalized points.
+    nrmLinePoints.clear();
+    for (int i = 0; i < _segments; ++i) {
+      final t = getT(i);
+      nrmLinePoints.add(Offset(
+        getNrm(getX(t), minX, maxX),
+        getNrm(getY(t), minY, maxY),
+      ));
+    }
+  }
+
+  Offset _closestOnLine(Offset nrmPoint) {
+    Offset closestNrm;
+    var closestDist = double.infinity;
+
+    for (final offset in nrmLinePoints) {
+      var dist = (nrmPoint - offset).distanceSquared;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestNrm = offset;
+      }
     }
 
-    double getCanvasY(double t) {
-      return getNormal(getY(t), minY, maxY) * size.height;
+    return closestNrm;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: _layout);
+  }
+
+  Widget _layout(BuildContext context, BoxConstraints constraints) {
+    final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+    Offset getNrm(Offset loc) {
+      return Offset(
+        loc.dx / size.width,
+        loc.dy / size.height,
+      );
     }
 
-    // Draw curved slider line.
+    final painter = CustomPaint(
+      painter: _Painter(
+        nrmLinePoints: nrmLinePoints,
+        nrmThumbPoints: nrmThumbPoints,
+        join: widget.join,
+        decoration: widget.decoration,
+      ),
+    );
+
+    final gestures = Listener(
+      onPointerDown: (event) {
+        // final nrm = getNrm(event.localPosition);
+      },
+      onPointerMove: (event) {},
+      onPointerUp: (event) {},
+      onPointerCancel: (event) {},
+      child: painter,
+    );
+
+    return gestures;
+  }
+}
+
+/// Draws the slider.
+class _Painter extends CustomPainter {
+  const _Painter({
+    @required this.nrmLinePoints,
+    @required this.nrmThumbPoints,
+    @required this.join,
+    @required this.decoration,
+  })  : assert(nrmLinePoints != null),
+        assert(nrmThumbPoints != null),
+        assert(join != null),
+        assert(decoration != null),
+        super();
+
+  final List<Offset> nrmLinePoints;
+  final List<Offset> nrmThumbPoints;
+  final bool join;
+  final CurvedSliderDecoration decoration;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    assert(nrmLinePoints.length > 0);
+
+    double getCanvasX(double nrmX) {
+      return nrmX * size.width;
+    }
+
+    double getCanvasY(double nrmY) {
+      return nrmY * size.height;
+    }
+
+    // Draw line.
     {
-      final path = Path()..moveTo(getCanvasX(0), getCanvasY(0));
-      for (int i = 0; i < segments; ++i) {
-        final t = getT(i);
-        final x = getCanvasX(t);
-        final y = getCanvasY(t);
+      final path = Path()..moveTo(
+        getCanvasX(nrmLinePoints.first.dx),
+        getCanvasY(nrmLinePoints.first.dy),
+      );
 
+      for (final nrmPoint in nrmLinePoints) {
+        final x = getCanvasX(nrmPoint.dx);
+        final y = getCanvasY(nrmPoint.dy);
         path.lineTo(x, y);
       }
 
@@ -204,8 +238,24 @@ class _Painter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round;
 
-      if (calculator.join) path.close();
+      if (join) path.close();
       canvas.drawPath(path, paint);
+    }
+
+    // Draw thumbs.
+    {
+      for (final nrmPoint in nrmThumbPoints) {
+        final x = getCanvasX(nrmPoint.dx);
+        final y = getCanvasY(nrmPoint.dy);
+
+        final paint = Paint()..color = decoration.thumbColor;
+
+        canvas.drawCircle(
+          Offset(x, y),
+          decoration.thumbRadius,
+          paint,
+        );
+      }
     }
   }
 
