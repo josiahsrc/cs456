@@ -18,7 +18,12 @@ class App extends StatelessWidget {
 class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final slider = CurvedSlider();
+    final slider = CurvedSlider(
+      calculator: CurvedSliderCalculator.elipse(
+        // fill: 1/4,
+        // offset: 0,
+      ),
+    );
 
     return Scaffold(
       body: Center(
