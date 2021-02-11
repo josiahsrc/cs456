@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 typedef CurvedSliderParametricCallback = double Function(double t);
 
 const _segments = 600;
+const _accessibilityOffset = 20;
 
 double _normalize(double val, double min, double max) {
   final absmin = min.abs();
@@ -21,7 +22,7 @@ double _normalize(double val, double min, double max) {
 }
 
 double _denormalize(double nrm, double min, double max) {
-  return ui.lerpDouble(nrm, min, max).clamp(min, max);
+  return ui.lerpDouble(min, max, nrm).clamp(min, max);
 }
 
 @immutable
@@ -137,6 +138,35 @@ class CurvedSlider extends StatefulWidget {
     );
   }
 
+  factory CurvedSlider.spiral({
+    double valueA = 0.0,
+    double valueB = 1.0,
+    double offset = 0.0,
+    double frequency = 1.0,
+    @required List<CurvedSliderThumb> thumbs,
+    CurvedSliderDecoration decoration = const CurvedSliderDecoration(),
+    bool mirror = false,
+  }) {
+    assert(offset != null);
+    assert(frequency != null);
+
+    double getEffectiveT(double t) {
+      final rOffset = 2 * math.pi * offset;
+      return t * frequency + rOffset;
+    }
+
+    return CurvedSlider(
+      computeX: (t) => math.cos(getEffectiveT(t)) * t,
+      computeY: (t) => math.sin(getEffectiveT(t)) * t,
+      join: false,
+      valueA: valueA,
+      valueB: valueB,
+      thumbs: thumbs,
+      decoration: decoration,
+      mirror: mirror,
+    );
+  }
+
   final CurvedSliderDecoration decoration;
   final CurvedSliderParametricCallback computeX;
   final CurvedSliderParametricCallback computeY;
@@ -218,13 +248,23 @@ class _CurvedSliderState extends State<CurvedSlider> {
     final nthumbs = widget.thumbs.length;
     final npoints = lineNrmPoints.length;
 
+    final oldThumbValues = List<double>.from(thumbNrmValues);
+    final bool didThumbValuesChange =
+        thumbNrmValues.length != widget.thumbs.length;
+
     // Cache normalized thumb points.
     thumbNrmValues.clear();
     thumbNrmPoints.clear();
     for (int i = 0; i < nthumbs; ++i) {
       final thumb = widget.thumbs[i];
 
-      final nrm = rangeToNrm(thumb.initialValue);
+      double nrm;
+      if (didThumbValuesChange) {
+        nrm = rangeToNrm(thumb.initialValue);
+      } else {
+        nrm = oldThumbValues[i];
+      }
+
       final idx = (nrm * (npoints - 1)).round();
       thumbNrmPoints.add(lineNrmPoints[idx]);
       thumbNrmValues.add(nrm);
@@ -335,21 +375,22 @@ class _CurvedSliderState extends State<CurvedSlider> {
     }
 
     void updatePress(int thumbIdx, Offset localPos) {
+      final nrmPoint = normalizePoint(localPos);
+      final lineIdx = closestNrmLinePoint(nrmPoint);
+      final lineNrm = lineNrmPoints[lineIdx];
+
+      final prevNrm = thumbNrmValues[thumbIdx];
+      final currNrm = lineIdx.toDouble() / (lineNrmPoints.length - 1);
+
       setState(() {
-        final nrmPoint = normalizePoint(localPos);
-        final lineIdx = closestNrmLinePoint(nrmPoint);
-        final lineNrm = lineNrmPoints[lineIdx];
-
-        final prevNrm = thumbNrmValues[thumbIdx];
-        final currNrm = lineIdx.toDouble() / (lineNrmPoints.length - 1);
-
         thumbNrmPoints[thumbIdx] = lineNrm;
         thumbNrmValues[thumbIdx] = currNrm;
-
-        resolveCollisions(currNrm > prevNrm);
       });
 
-      final value = nrmToRange(thumbNrmValues[thumbIdx]);
+      resolveCollisions(currNrm > prevNrm);
+      setState(() {});
+
+      final value = nrmToRange(currNrm);
       widget.thumbs[thumbIdx].onChanged?.call(value);
     }
 
@@ -378,7 +419,7 @@ class _CurvedSliderState extends State<CurvedSlider> {
 
         final pos = denormalizePoint(thumbNrmPoints[idx]);
         if ((pos - event.localPosition).distance >
-            widget.decoration.thumbRadius) {
+            widget.decoration.thumbRadius + _accessibilityOffset) {
           return;
         }
 
@@ -403,7 +444,10 @@ class _CurvedSliderState extends State<CurvedSlider> {
           setState(() => selectedThumbIdx = null);
         }
       },
-      child: painter,
+      child: Padding(
+        padding: EdgeInsets.all(widget.decoration.thumbRadius),
+        child: painter,
+      ),
     );
 
     if (widget.mirror) {
