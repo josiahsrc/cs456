@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'unusable_widget.dart';
+
 class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -19,6 +21,9 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Unusable Widget Demo'),
+      ),
+      body: Center(
+        child: UnusablePlayButton(),
       ),
     );
   }
