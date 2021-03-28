@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class PausePlayButton extends StatefulWidget {
   final VoidCallback onPressed;
@@ -53,17 +54,6 @@ class _PausePlayButtonState extends State<PausePlayButton>
   }
 }
 
-/// Ideas:
-/// - A play button that repels away from your finger like a magnet.
-/// You have to use two  fingers. One to move it, the other to press
-/// it.
-/// - When you press on the play button, a radial menu appears with
-/// 10 items. Each one is not related to the play button.
-/// - Put the play button below the video. Or way apart from the
-/// video.
-/// - You need to repel the play button into the view so you can use
-/// it. There's only one play button. You have to move it in between
-/// video frames to use it for each video frame.
 class UnusablePlayButton extends StatefulWidget {
   @override
   _UnusablePlayButtonState createState() => _UnusablePlayButtonState();
@@ -79,5 +69,51 @@ class _UnusablePlayButtonState extends State<UnusablePlayButton> {
     // return Stack(
     //   children: [],
     // );
+  }
+}
+
+class UnusableVideoPlayer extends StatefulWidget {
+  @override
+  _UnusableVideoPlayerState createState() => _UnusableVideoPlayerState();
+}
+
+class _UnusableVideoPlayerState extends State<UnusableVideoPlayer> {
+  final _controller = YoutubePlayerController(
+    initialVideoId: 'djV11Xbc914',
+    flags: YoutubePlayerFlags(
+      autoPlay: false,
+      mute: true,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final player = YoutubePlayer(
+      controller: _controller,
+      showVideoProgressIndicator: true,
+      progressIndicatorColor: Colors.amber,
+      progressColors: ProgressBarColors(
+        playedColor: Colors.amber,
+        handleColor: Colors.amberAccent,
+      ),
+    );
+
+    final layout = LayoutBuilder(
+      builder: _buildLayout,
+    );
+
+    return Stack(
+      children: [
+        player,
+        layout,
+      ],
+    );
+  }
+
+  Widget _buildLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    return Container();
   }
 }
