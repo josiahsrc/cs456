@@ -10,15 +10,14 @@ class App extends StatelessWidget {
       theme: ThemeData(
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: SettingsPage(),
+      home: HomePage(),
     );
   }
 }
 
-class SettingsPage extends StatelessWidget {
+class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     final video = SliverList(
       delegate: SliverChildListDelegate([
@@ -26,18 +25,8 @@ class SettingsPage extends StatelessWidget {
       ]),
     );
 
-    final info = SliverList(
-      delegate: SliverChildListDelegate([
-        Text(
-          'A really useful video player. '
-          'Press play to play the vid.',
-          style: theme.textTheme.headline5,
-        ),
-      ]),
-    );
-
     final content = CustomScrollView(
-      physics: NeverScrollableScrollPhysics(),
+      physics: NeverScrollableScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       slivers: [
         SliverToBoxAdapter(
           child: SizedBox(height: 32),
@@ -45,13 +34,6 @@ class SettingsPage extends StatelessWidget {
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           sliver: video,
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(height: 32),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          sliver: info,
         ),
         SliverToBoxAdapter(
           child: SizedBox(height: 32),
