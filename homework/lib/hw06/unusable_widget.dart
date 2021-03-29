@@ -2,6 +2,61 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
+class PausePlayButton extends StatefulWidget {
+  final VoidCallback onPressed;
+
+  const PausePlayButton({
+    Key key,
+    this.onPressed,
+  }) : super(key: key);
+
+  @override
+  _PausePlayButtonState createState() => _PausePlayButtonState();
+}
+
+class _PausePlayButtonState extends State<PausePlayButton>
+    with SingleTickerProviderStateMixin {
+  bool playing = false;
+  AnimationController controller;
+
+  @override
+  void initState() {
+    controller = AnimationController(
+      vsync: this,
+      duration: Duration(
+        milliseconds: 300,
+      ),
+    )..value = 1;
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    controller = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      iconSize: 50,
+      icon: AnimatedIcon(
+        color: Colors.white,
+        progress: controller,
+        icon: AnimatedIcons.pause_play,
+      ),
+      onPressed: () {
+        setState(() {
+          playing = !playing;
+          playing ? controller.forward() : controller.reverse();
+        });
+        widget?.onPressed?.call();
+      },
+    );
+  }
+}
+
 class UnusableVideoPlayer extends StatefulWidget {
   @override
   _UnusableVideoPlayerState createState() => _UnusableVideoPlayerState();
@@ -74,12 +129,7 @@ class _UnusableVideoPlayerState extends State<UnusableVideoPlayer> {
 
     final fakePlaybutton = Positioned.fill(
       child: Center(
-        child: IconButton(
-          iconSize: 64,
-          icon: Icon(Icons.play_arrow),
-          color: Colors.white,
-          onPressed: () {},
-        ),
+        child: PausePlayButton(),
       ),
     );
 
@@ -122,6 +172,7 @@ class _UnusableVideoPlayerState extends State<UnusableVideoPlayer> {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
+                    duration: Duration(seconds: 10),
                     content: Text(
                       'The video is done loading. You can now '
                       'play the video.',
